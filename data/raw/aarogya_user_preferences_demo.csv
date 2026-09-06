@@ -1,0 +1,11 @@
+user_id,preference_profile,sugar_weight,protein_weight,fiber_weight,sodium_weight,calorie_weight,saturated_fat_weight
+USR001,balanced,0.20,0.20,0.20,0.20,0.10,0.10
+USR002,sugar_focused,0.40,0.10,0.15,0.15,0.10,0.10
+USR003,protein_focused,0.10,0.40,0.15,0.10,0.10,0.15
+USR004,fiber_focused,0.15,0.15,0.40,0.10,0.10,0.10
+USR005,low_sodium,0.15,0.15,0.15,0.40,0.10,0.05
+USR006,low_calorie,0.20,0.10,0.20,0.15,0.25,0.10
+USR007,low_saturated_fat,0.15,0.10,0.15,0.15,0.15,0.30
+USR008,athlete,0.10,0.45,0.15,0.05,0.20,0.05
+USR009,diabetic_aware,0.40,0.15,0.25,0.10,0.05,0.05
+USR010,heart_health,0.20,0.10,0.20,0.25,0.10,0.15

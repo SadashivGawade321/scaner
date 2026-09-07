@@ -1,0 +1,30 @@
+AAROGYA — Training Summary
+==================================================
+Training samples : 425
+Test samples     : 75
+
+Model Performance on Test Set:
+--------------------------------------------------
+  linear_regression:
+    MAE  = 1.01
+    RMSE = 1.31
+    R²   = 0.991
+
+  random_forest:
+    MAE  = 3.16
+    RMSE = 4.39
+    R²   = 0.895
+
+  xgboost:
+    MAE  = 2.00
+    RMSE = 2.86
+    R²   = 0.955
+
+XGBoost 5-fold CV MAE: 3.16 ± 0.68
+
+Best Model: XGBoost
+Saved to: models/xgboost_v1.json
+
+IMPORTANT: Model trained on SYNTHETIC data.
+Performance will improve with real product data.
+Label circularity: model learns to imitate scoring rules.

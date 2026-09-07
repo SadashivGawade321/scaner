@@ -56,6 +56,12 @@ Thumbs.db
 *.log
 logs/
 
+# ─── Static Assets ───────────────────────────────────────────────────────────
+# Demo images are large; regenerate with: python data/generate_large_dataset.py
+# Comment out the lines below if you want to commit them
+# static/demo/*.jpg
+# static/demo/*.png
+
 # ─── Miscellaneous ────────────────────────────────────────────────────────────
 *.tmp
 *.bak

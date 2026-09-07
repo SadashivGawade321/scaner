@@ -242,7 +242,133 @@ Write 2 sentences. Use "for your selected preferences". Do not make medical clai
             {"role": "user",   "content": user_msg},
         ]
 
-    # ─── Rule-based fallback ───────────────────────────────────────────────
+    # ─── Vision Analysis ───────────────────────────────────────────────────
+
+    def analyze_product_image(self, image_bytes: bytes) -> dict:
+        """
+        Analyze a product front/back image using Groq vision.
+        Returns dict with: product_name, brand, category, processing_level,
+                           estimated_nutrition, concerns, confidence
+        """
+        import base64
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        prompt = """You are analyzing a packaged food product image for the Aarogya food intelligence system.
+
+Look at this image carefully. It may show:
+- The product front (name, brand, claims)
+- A nutrition facts label
+- An ingredients list
+- A barcode
+
+Extract and return ONLY a JSON object with these fields (use null if not found):
+{
+  "product_name": "...",
+  "brand": "...",
+  "category": "...",
+  "processing_level": "minimally_processed|processed|ultra_processed",
+  "energy_kcal_100g": number_or_null,
+  "protein_g_100g": number_or_null,
+  "carbs_g_100g": number_or_null,
+  "sugar_g_100g": number_or_null,
+  "total_fat_g_100g": number_or_null,
+  "saturated_fat_g_100g": number_or_null,
+  "fiber_g_100g": number_or_null,
+  "sodium_mg_100g": number_or_null,
+  "ingredients_list": ["ingredient1","ingredient2",...],
+  "contains_whole_grain": true/false,
+  "contains_added_sugar": true/false,
+  "contains_artificial_sweetener": true/false,
+  "contains_allergen": true/false,
+  "allergens_found": ["..."],
+  "harmful_additives": ["E-number or additive name if concerning"],
+  "health_claims": ["..."],
+  "confidence": "high|medium|low"
+}
+
+Return ONLY the JSON. No explanation."""
+
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url",
+                         "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]
+                }],
+                max_tokens=600,
+                temperature=0.1,
+            )
+            import json, re
+            raw = response.choices[0].message.content.strip()
+            # Strip markdown code fences if present
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+            return json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Vision analysis failed: {e}")
+            return {"confidence": "low", "error": str(e)}
+
+    def analyze_ingredients(self, image_bytes: bytes) -> dict:
+        """
+        Analyze an ingredients list image.
+        Returns structured ingredient analysis with red flags.
+        """
+        import base64
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        prompt = """You are analyzing an ingredients list photo from a packaged food product for Aarogya food intelligence.
+
+Read ALL text visible in this image carefully.
+
+Return ONLY a JSON object:
+{
+  "ingredients_raw": "full ingredients text as written",
+  "ingredients_list": ["ingredient1", "ingredient2", ...],
+  "total_ingredients_count": number,
+  "red_flag_ingredients": [
+    {"name": "...", "reason": "why it's concerning", "severity": "high|medium|low"}
+  ],
+  "additives_found": ["E471", "INS 322", ...],
+  "allergens": ["gluten", "milk", ...],
+  "contains_palm_oil": true/false,
+  "contains_artificial_colours": true/false,
+  "contains_artificial_flavours": true/false,
+  "contains_preservatives": true/false,
+  "contains_added_sugar": true/false,
+  "processing_level_guess": "minimally_processed|processed|ultra_processed",
+  "ingredient_quality_score": 0_to_10,
+  "summary": "2 sentence plain English summary of ingredient quality"
+}
+
+Return ONLY the JSON. No extra text."""
+
+        try:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url",
+                         "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+                    ]
+                }],
+                max_tokens=700,
+                temperature=0.1,
+            )
+            import json, re
+            raw = response.choices[0].message.content.strip()
+            raw = re.sub(r"^```[a-z]*\n?", "", raw)
+            raw = re.sub(r"\n?```$", "", raw)
+            return json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Ingredients analysis failed: {e}")
+            return {"error": str(e), "summary": "Could not analyze ingredients."}
+
 
     def _fallback_score(self, ctx: dict) -> str:
         score = ctx.get("predicted_score", 0)

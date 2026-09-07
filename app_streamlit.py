@@ -36,7 +36,7 @@ except ImportError:
     print("Install streamlit: pip install streamlit plotly")
     sys.exit(1)
 
-from ml.scoring          import score_product
+from ml.scoring          import compute_aarogya_score as score_product
 from llm.groq_llm        import AarogyaGroqExplainer
 from recommendation.recommender import AarogyaRecommender
 
@@ -450,7 +450,7 @@ elif "Analyze" in page:
         with st.spinner("Analyzing product..."):
             # Score
             det = score_product(product_data)
-            score = det["computed_score"]
+            score = det["final_score"]
 
             # Try ML predictor
             predictor = get_predictor()
@@ -470,8 +470,8 @@ elif "Analyze" in page:
                     "processing_level":product_data.get("processing_level",""),
                     "predicted_score": score,
                     "base_value":      55.0,
-                    "strengths":       det.get("score_strengths",[]),
-                    "concerns":        det.get("score_concerns",[]),
+                    "strengths":       det.get("breakdown", {}).get("strengths", []),
+                    "concerns":        det.get("breakdown", {}).get("concerns",  []),
                     "shap_top_features": {},
                 }
 
@@ -664,10 +664,10 @@ elif "Chat" in page:
                     ctx_product = {
                         "product_name":    row["product_name"],
                         "category":        row["category"],
-                        "predicted_score": float(row.get("food_score", det["computed_score"])),
+                        "predicted_score": float(row.get("food_score", det["final_score"])),
                         "processing_level":row.get("processing_level", ""),
-                        "strengths":       det.get("score_strengths", []),
-                        "concerns":        det.get("score_concerns",  []),
+                        "strengths":       det.get("breakdown",{}).get("strengths", []),
+                        "concerns":        det.get("breakdown",{}).get("concerns",  []),
                     }
                     st.info(
                         f"📦 **{row['product_name']}** | Score: {ctx_product['predicted_score']:.0f}/100 | "

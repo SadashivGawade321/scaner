@@ -81,6 +81,14 @@ Your role:
 
         api_key = os.getenv("GROQ_API_KEY", "")
         if not api_key:
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
+                    api_key = st.secrets["GROQ_API_KEY"]
+            except Exception:
+                pass
+
+        if not api_key:
             logger.info("GROQ_API_KEY not set — rule-based fallback active.")
             return
 

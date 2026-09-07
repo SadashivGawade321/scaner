@@ -219,7 +219,11 @@ def get_mongo_db():
         from dotenv import load_dotenv; load_dotenv()
         import pymongo
         uri  = os.getenv("MONGO_URI","")
+        if not uri and hasattr(st, "secrets") and "MONGO_URI" in st.secrets:
+            uri = st.secrets["MONGO_URI"]
         name = os.getenv("MONGO_DB_NAME","aarogya_db")
+        if hasattr(st, "secrets") and not os.getenv("MONGO_DB_NAME") and "MONGO_DB_NAME" in st.secrets:
+            name = st.secrets["MONGO_DB_NAME"]
         if not uri: return None
         cli  = pymongo.MongoClient(uri, serverSelectionTimeoutMS=4000)
         cli.admin.command("ping")

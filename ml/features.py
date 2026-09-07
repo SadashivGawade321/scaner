@@ -67,6 +67,19 @@ CATEGORICAL_FEATURES = [
     "processing_level",
 ]
 
+# Canonical list of features that build_feature_matrix must produce
+EXPECTED_FEATURES = [
+    "energy_kcal_100g", "protein_g_100g", "carbs_g_100g",
+    "sugar_g_100g", "added_sugar_g_100g", "total_fat_g_100g",
+    "saturated_fat_g_100g", "trans_fat_g_100g", "fiber_g_100g",
+    "sodium_mg_100g", "ingredient_count",
+    "protein_per_calorie", "sugar_to_carbs_ratio", "fiber_to_carbs_ratio",
+    "sodium_density", "fat_density",
+    "contains_whole_grain", "contains_added_sugar",
+    "contains_artificial_sweetener", "contains_allergen",
+    "category_enc", "processing_level_enc",
+]
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. DERIVED FEATURES
 # ─────────────────────────────────────────────────────────────────────────────

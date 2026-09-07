@@ -1,102 +1,244 @@
 """
-llm/gemini.py — [WEEK 13]
+llm/gemini.py
 ─────────────────────────────────────────────────────────────────────────────
-AAROGYA — Gemini Explanation Layer
+AAROGYA — Gemini Explanation Layer (Week 13)
 ─────────────────────────────────────────────────────────────────────────────
 
-DESIGN PRINCIPLE
-────────────────
-Gemini is a TRANSLATION LAYER only.
+DESIGN PRINCIPLE — Gemini is a TRANSLATION LAYER only.
+It converts structured ML output (score + SHAP) into natural language.
+It does NOT: generate scores, look up nutrition data, or make medical claims.
 
-It converts structured ML analysis output (score + SHAP values) into
-user-friendly natural language. It does NOT:
-  - Calculate or override the numerical Aarogya score
-  - Look up nutrition information independently
-  - Make medical claims
-  - Invent ingredients or nutritional values
+USAGE
+─────
+    from llm.gemini import AarogyaExplainer
+    exp = AarogyaExplainer()
+    text = exp.explain_score(explanation_context)
+    text = exp.explain_recommendation(current_ctx, recommendations)
 
-SECURITY
-────────
-All prompts use structured JSON input. Never pass raw user text directly
-to Gemini without sanitization. Always specify exact output format.
-
-[WEEK 13 IMPLEMENTATION]
+    # Without API key: uses rule-based fallback automatically
 """
 
-import os
-import logging
+import os, sys, logging
+import json
+
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 logger = logging.getLogger(__name__)
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 try:
     import google.generativeai as genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
-    logger.warning("google-generativeai not installed. Install in Week 13.")
 
 
 class AarogyaExplainer:
     """
-    [WEEK 13] Gemini-based explanation layer.
-    Takes structured analysis context and returns natural language.
+    Translates structured ML analysis into natural language via Gemini.
+    Falls back to rule-based explanation if Gemini is unavailable.
     """
 
+    SCORE_TO_TIER = {
+        (0,  39): ("Needs Consideration", "red"),
+        (40, 59): ("Moderate",            "amber"),
+        (60, 74): ("Good",                "light-green"),
+        (75, 100):("Excellent",           "green"),
+    }
+
     def __init__(self):
+        self._client = None
+        self._model  = None
+        self._ready  = False
+
         if not GEMINI_AVAILABLE:
-            logger.warning("Gemini not available. Explanations will be rule-based fallback.")
+            logger.info("google-generativeai not installed — using rule-based fallback.")
             return
 
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY", "")
         if not api_key:
-            raise ValueError(
-                "GEMINI_API_KEY not set in environment. "
-                "Add it to your .env file."
-            )
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+            logger.info("GEMINI_API_KEY not set — using rule-based fallback.")
+            return
 
-    def explain_score(self, analysis_context: dict) -> str:
+        try:
+            genai.configure(api_key=api_key)
+            self._model = genai.GenerativeModel("gemini-1.5-flash")
+            self._ready = True
+            logger.info("Gemini connected.")
+        except Exception as e:
+            logger.warning(f"Gemini init failed: {e}")
+
+    # ─── Public API ────────────────────────────────────────────────────────
+
+    def explain_score(self, ctx: dict) -> str:
         """
-        [WEEK 13] Generate a natural language explanation of the score.
+        Generate a natural language explanation of the Aarogya score.
 
         Parameters
         ----------
-        analysis_context : dict with keys:
-            product_name, predicted_score, strengths, concerns, shap_values
+        ctx : dict — from ml/explain.py build_explanation_context()
 
         Returns
         -------
-        str — 2-3 sentence explanation
+        str — 2-3 sentence user-friendly explanation
         """
-        raise NotImplementedError("Implement in Week 13.")
+        if self._ready:
+            try:
+                return self._gemini_explain_score(ctx)
+            except Exception as e:
+                logger.warning(f"Gemini call failed: {e}. Using fallback.")
+        return self._fallback_explain_score(ctx)
 
-    def explain_recommendation(self, current: dict, recommendations: list) -> str:
+    def explain_recommendation(self, current: dict, recs: list) -> str:
         """
-        [WEEK 13] Generate natural language recommendation explanation.
-        """
-        raise NotImplementedError("Implement in Week 13.")
+        Generate a recommendation explanation narrative.
 
-    @staticmethod
-    def _fallback_explanation(analysis_context: dict) -> str:
-        """
-        Rule-based fallback when Gemini is unavailable.
-        Used in development without API key.
-        """
-        score = analysis_context.get("predicted_score", "?")
-        strengths = analysis_context.get("strengths", [])
-        concerns = analysis_context.get("concerns", [])
+        Parameters
+        ----------
+        current : dict — explanation context for current product
+        recs    : list of recommendation dicts from recommender
 
-        parts = [
-            f"This product has an Aarogya score of {score}/100."
-        ]
-        if strengths:
-            parts.append(
-                f"For your selected preferences, it performs well on: "
-                f"{', '.join(strengths)}."
+        Returns
+        -------
+        str — recommendation explanation
+        """
+        if self._ready:
+            try:
+                return self._gemini_explain_recs(current, recs)
+            except Exception as e:
+                logger.warning(f"Gemini call failed: {e}. Using fallback.")
+        return self._fallback_explain_recs(current, recs)
+
+    # ─── Gemini calls ──────────────────────────────────────────────────────
+
+    def _gemini_explain_score(self, ctx: dict) -> str:
+        prompt = self._build_score_prompt(ctx)
+        response = self._model.generate_content(prompt)
+        return response.text.strip()
+
+    def _gemini_explain_recs(self, current: dict, recs: list) -> str:
+        prompt = self._build_rec_prompt(current, recs)
+        response = self._model.generate_content(prompt)
+        return response.text.strip()
+
+    # ─── Prompt builders ───────────────────────────────────────────────────
+
+    def _build_score_prompt(self, ctx: dict) -> str:
+        tier, _ = self._get_tier(ctx["predicted_score"])
+        return f"""You are AAROGYA, a packaged food information assistant.
+
+Product: {ctx['product_name']}
+Category: {ctx['category']}
+Processing: {ctx['processing_level']}
+Aarogya Score: {ctx['predicted_score']}/100 ({tier})
+
+This score was generated by a machine learning model trained on nutritional data.
+Key factors driving this score (SHAP analysis):
+- Positive factors: {', '.join(ctx['strengths']) if ctx['strengths'] else 'None significant'}
+- Negative factors: {', '.join(ctx['concerns']) if ctx['concerns'] else 'None significant'}
+
+Instructions:
+- Write exactly 2-3 sentences explaining this product's nutritional profile.
+- Use the phrase "for your selected preferences" instead of "healthy" or "unhealthy".
+- Do NOT make medical claims or diagnoses.
+- Only use facts from the data above. Do NOT invent any numbers.
+- Be conversational and helpful."""
+
+    def _build_rec_prompt(self, current: dict, recs: list) -> str:
+        rec_lines = []
+        for i, r in enumerate(recs[:3], 1):
+            rec_lines.append(
+                f"  {i}. {r.get('product_name','?')} "
+                f"(Score: {r.get('food_score', r.get('computed_score','?'))})"
             )
-        if concerns:
+        return f"""You are AAROGYA, a packaged food information assistant.
+
+Current Product: {current['product_name']} (Score: {current['predicted_score']}/100)
+Recommended alternatives (same category):
+{chr(10).join(rec_lines)}
+
+Instructions:
+- Write 2 sentences explaining why these alternatives may be better for the user's preferences.
+- Do NOT make medical claims.
+- Use "for your selected preferences" instead of "healthier".
+- Do not invent information."""
+
+    # ─── Rule-based fallbacks ──────────────────────────────────────────────
+
+    def _fallback_explain_score(self, ctx: dict) -> str:
+        score = ctx["predicted_score"]
+        tier, _ = self._get_tier(score)
+        name = ctx["product_name"]
+
+        parts = [f"{name} has an Aarogya score of {score}/100, rated as {tier}."]
+
+        if ctx["strengths"]:
+            s = ", ".join(ctx["strengths"][:2])
             parts.append(
-                f"You may want to consider: {', '.join(concerns)}."
+                f"For your selected preferences, it performs well on {s}."
             )
+        if ctx["concerns"]:
+            c = ", ".join(ctx["concerns"][:2])
+            parts.append(
+                f"You may want to consider that it has relatively high {c}."
+            )
+        if not ctx["strengths"] and not ctx["concerns"]:
+            parts.append("This product has a balanced nutritional profile for its category.")
+
         return " ".join(parts)
+
+    def _fallback_explain_recs(self, current: dict, recs: list) -> str:
+        if not recs:
+            return "No alternative products found in the same category."
+        top = recs[0]
+        name = top.get("product_name", "the recommended product")
+        score = top.get("food_score", top.get("computed_score", "?"))
+        current_name = current.get("product_name", "this product")
+        return (
+            f"Based on your selected preferences, {name} (Score: {score}) "
+            f"may be a better fit compared to {current_name}. "
+            f"It offers improvements in the nutritional areas you care about most."
+        )
+
+    def _get_tier(self, score: float):
+        for (lo, hi), (tier, color) in self.SCORE_TO_TIER.items():
+            if lo <= score <= hi:
+                return tier, color
+        return "Unknown", "grey"
+
+
+# ─── Quick test ────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    print("=" * 60)
+    print("AAROGYA — Gemini Explainer Test")
+    print("=" * 60)
+
+    exp = AarogyaExplainer()
+    ctx = {
+        "product_name":    "Choco Cream Sandwich Biscuits",
+        "category":        "Biscuits & Cookies",
+        "processing_level":"ultra_processed",
+        "predicted_score": 31.0,
+        "base_value":      55.0,
+        "score_version":   "v1.0",
+        "strengths":       [],
+        "concerns":        ["sugar", "saturated fat", "energy density"],
+        "shap_top_features": {"sugar": -9.5, "saturated fat": -4.2, "fiber": -2.1},
+    }
+    explanation = exp.explain_score(ctx)
+    print(f"\nExplanation:\n  {explanation}")
+
+    recs = [
+        {"product_name": "High Fiber Bran Biscuits", "food_score": 74},
+        {"product_name": "Oatmeal Cookies",           "food_score": 68},
+    ]
+    rec_text = exp.explain_recommendation(ctx, recs)
+    print(f"\nRecommendation:\n  {rec_text}")
+
+    print("\n[GEMINI EXPLAINER OK]")

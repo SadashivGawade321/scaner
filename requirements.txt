@@ -1,104 +1,38 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# AAROGYA — requirements.txt
-# ─────────────────────────────────────────────────────────────────────────────
-# Separated into Day 1 (install now) and Later (install when needed).
-#
-# Install Day 1 packages:
+# =============================================================================
+# AAROGYA — Python Requirements
+# =============================================================================
+# Install everything:
 #   pip install -r requirements.txt
 #
-# If you want to install all at once (including future):
-#   pip install -r requirements_full.txt  (create separately when needed)
-# ─────────────────────────────────────────────────────────────────────────────
+# Or in the project venv:
+#   .\venv\Scripts\pip.exe install -r requirements.txt
+# =============================================================================
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# DAY 1 — Required for dataset work, scoring, and feature engineering
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Core data manipulation
+# ── Core Data ─────────────────────────────────────────────────────────────────
 pandas>=2.0.0
 numpy>=1.24.0
 
-# Machine Learning (baseline model)
+# ── Machine Learning ──────────────────────────────────────────────────────────
 scikit-learn>=1.3.0
 xgboost>=2.0.0
 
-# Explainability
+# ── Explainability ────────────────────────────────────────────────────────────
 shap>=0.44.0
 
-# Environment variable management
+# ── LLM — Groq (primary) ──────────────────────────────────────────────────────
+groq>=0.9.0
+
+# ── Environment Variables ─────────────────────────────────────────────────────
 python-dotenv>=1.0.0
 
+# ── Web UI ────────────────────────────────────────────────────────────────────
+streamlit>=1.35.0
+plotly>=5.20.0
 
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 2-3 — Install when starting real data collection
-# ══════════════════════════════════════════════════════════════════════════════
+# ── REST API ──────────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn>=0.29.0
+pydantic>=2.7.0
 
-# HTTP requests (Open Food Facts, USDA API)
-# requests>=2.31.0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 7-8 — Install when training first ML model
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Experiment tracking
-# mlflow>=2.9.0
-
-# Visualization
-# matplotlib>=3.7.0
-# seaborn>=0.13.0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 10 — Install when implementing Ingredient NLP
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Sentence embeddings for ingredient similarity
-# sentence-transformers>=2.6.0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 12 — Install when implementing OCR
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Computer Vision
-# opencv-python>=4.8.0
-
-# OCR Engine — choose one:
-# paddlepaddle>=2.6.0   (required runtime for PaddleOCR)
-# paddleocr>=2.7.0
-# pytesseract>=0.3.10   (alternative: simpler, requires Tesseract binary)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 13 — Install when wiring up Gemini, FastAPI, and MongoDB
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Google Gemini API
-# google-generativeai>=0.5.0
-
-# FastAPI backend
-# fastapi>=0.110.0
-# uvicorn[standard]>=0.29.0
-# pydantic>=2.0.0
-
-# MongoDB
-# pymongo>=4.6.0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# WEEK 14 — Install when building Streamlit UI
-# ══════════════════════════════════════════════════════════════════════════════
-
-# Frontend
-# streamlit>=1.32.0
-# plotly>=5.20.0
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# TESTING (install when writing tests — recommended from Week 2)
-# ══════════════════════════════════════════════════════════════════════════════
-
-# pytest>=8.0.0
-# pytest-cov>=4.1.0
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest>=8.0.0

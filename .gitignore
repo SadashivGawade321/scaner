@@ -37,6 +37,7 @@ models/*.pkl
 models/*.joblib
 models/*.model
 models/*.bin
+models/*.json
 models/mlruns/
 
 # ─── MLflow ───────────────────────────────────────────────────────────────────

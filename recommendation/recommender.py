@@ -343,6 +343,44 @@ class AarogyaRecommender:
                 "Normalize your weights."
             )
 
+    def recommend_by_data(
+        self,
+        current_product: dict,
+        recommendation_group: str,
+        preference_profile: str = "balanced",
+        top_n: int = 3,
+    ) -> pd.DataFrame:
+        """
+        Recommend alternatives for a product specified as a dict (not in catalog).
+        Used by the FastAPI /analyze endpoint.
+        """
+        weights = DEFAULT_PREFERENCE_PROFILES.get(
+            preference_profile, DEFAULT_PREFERENCE_PROFILES["balanced"]
+        )
+        current = pd.Series(current_product)
+
+        candidates = self.df[
+            self.df["recommendation_group"] == recommendation_group
+        ].copy()
+
+        if candidates.empty:
+            return pd.DataFrame()
+
+        ranking_scores = []
+        for _, candidate in candidates.iterrows():
+            score = self._compute_ranking_score(current, candidate, weights)
+            ranking_scores.append(score)
+
+        candidates["ranking_score"] = ranking_scores
+        top = candidates.nlargest(top_n, "ranking_score").copy()
+        top["recommendation_reason"] = top.apply(
+            lambda row: self._build_reason(current, row, weights), axis=1
+        )
+        return top[[
+            "product_id", "product_name", "category",
+            "food_score", "ranking_score", "recommendation_reason"
+        ]].reset_index(drop=True)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Quick Test

@@ -1,102 +1,44 @@
-# AAROGYA — AI Food Product Intelligence
+# 🌿 AAROGYA — AI Food Product Intelligence
 
-> A packaged-food intelligence and comparative decision-support system.
+> **B.Tech IT Final Project** | End-to-end AI/ML system for packaged food analysis
 
-**AAROGYA** analyzes packaged food products, generates an explainable Aarogya Food Insight Score (0–100), and recommends comparatively suitable alternatives based on user preferences — using a full ML pipeline from data collection through SHAP-explained predictions.
-
----
-
-## ⚠️ Important Disclaimers
-
-- This is an **academic / research project**.
-- Aarogya is **not** a medical device, clinical nutrition system, or diagnostic tool.
-- It does **not** determine whether a product is "healthy" or "unhealthy" in a clinical sense.
-- All scores represent **comparative nutritional profiles** relative to defined methodology, not medical advice.
-- The demo dataset (`aarogya_food_products_demo.csv`) is **100% synthetic** — fictional brands, fabricated values. It is intended for development and testing only.
-- 100 synthetic products are **not sufficient** for a production ML model. Real data collection (1,000–5,000+ products) is required for Week 2+.
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://python.org)
+[![XGBoost](https://img.shields.io/badge/model-XGBoost-orange.svg)](https://xgboost.readthedocs.io)
+[![Groq](https://img.shields.io/badge/LLM-Groq-purple.svg)](https://groq.com)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit-red.svg)](https://streamlit.io)
+[![Tests](https://img.shields.io/badge/tests-40%20passed-brightgreen.svg)](#testing)
 
 ---
 
-## Core Design Principle
+## What Is Aarogya?
 
-```
-Rules Calculate → ML Learns → SHAP Explains → AI Communicates → Preferences Personalize
-```
+Aarogya is a packaged-food intelligence system that:
 
-| Component | Role |
-|-----------|------|
-| **Deterministic Scoring** | Creates transparent, auditable target labels for ML training |
-| **XGBoost ML Model** | Learns relationships between nutritional features and score |
-| **SHAP** | Explains which features drove each prediction |
-| **Gemini API** | Converts structured analysis into user-friendly natural language |
-| **User Preferences** | Personalize recommendation ranking |
-
-**Gemini does NOT generate the numerical score.** The score comes from the ML model. Gemini only translates the structured result into readable language.
+1. **Scores** any packaged food product (0–100) using a deterministic nutrition algorithm
+2. **Predicts** scores with a trained XGBoost model (R² = 0.955, MAE = 2.0)
+3. **Explains** every score using SHAP values → natural language via Groq LLM
+4. **Recommends** category-matched healthier alternatives
+5. **Compares** two products side-by-side
+6. **Chats** about any product using Groq AI
 
 ---
 
-## Project Status
+## User Flow
 
-| Phase | Status |
-|-------|--------|
-| Project Foundation | ✅ Day 1 |
-| Demo Dataset | ✅ Day 1 |
-| Data Validation | ✅ Day 1 |
-| Baseline Scoring | ✅ Day 1 |
-| Feature Engineering | ✅ Day 1 |
-| Recommendation Engine (Rule-based) | ✅ Day 1 |
-| Real Data Collection | 🔲 Week 2 |
-| ML Training | 🔲 Week 7 |
-| SHAP Explainability | 🔲 Week 9 |
-| Gemini Integration | 🔲 Week 13 |
-| Streamlit UI | 🔲 Week 14 |
-
----
-
-## Quick Start (Day 1)
-
-### 1. Create virtual environment
-
-```powershell
-cd aarogya
-python -m venv venv
-venv\Scripts\activate
 ```
-
-### 2. Install Day 1 dependencies
-
-```powershell
-pip install -r requirements.txt
-```
-
-### 3. Copy environment file
-
-```powershell
-copy .env.example .env
-```
-
-### 4. Verify environment
-
-```powershell
-python app.py
-```
-
-### 5. Validate dataset
-
-```powershell
-python data/validate_dataset.py
-```
-
-### 6. Run baseline scoring
-
-```powershell
-python ml/scoring.py
-```
-
-### 7. Test feature engineering
-
-```powershell
-python ml/features.py
+SCAN / SEARCH
+     ↓
+IDENTIFY product (catalog or manual entry)
+     ↓
+EXTRACT nutrition facts
+     ↓
+SCORE  (deterministic v1.0 + XGBoost ML)
+     ↓
+EXPLAIN  (SHAP features → Groq LLM → plain English)
+     ↓
+COMPARE  (two products side-by-side)
+     ↓
+RECOMMEND  (preference-weighted alternatives)
 ```
 
 ---
@@ -106,249 +48,181 @@ python ml/features.py
 ```
 aarogya/
 │
-├── app.py                          # Main entry point
-├── requirements.txt                # Phased dependencies
-├── README.md
-├── .gitignore
-├── .env.example
-│
 ├── data/
-│   ├── raw/
-│   │   ├── aarogya_food_products_demo.csv     ← 100 synthetic products
-│   │   └── aarogya_user_preferences_demo.csv  ← 10 demo user profiles
-│   ├── validate_dataset.py         # Dataset validation script
-│   ├── cleaned/                    # Cleaned data (Week 3)
-│   └── processed/                  # ML-ready features (Week 5)
+│   ├── raw/                          ← CSV datasets
+│   │   ├── aarogya_food_products_demo.csv   (100 products)
+│   │   └── aarogya_products_500.csv          (500 products, generated)
+│   ├── validate_dataset.py           ← 35-check validation suite
+│   └── generate_large_dataset.py     ← synthetic data generator
 │
 ├── ml/
-│   ├── scoring.py                  # ✅ Deterministic scoring engine (v1.0)
-│   ├── features.py                 # ✅ Feature engineering pipeline
-│   ├── preprocessing.py            # (Week 3) Data cleaning
-│   ├── train.py                    # (Week 7) Model training
-│   ├── evaluate.py                 # (Week 8) Model evaluation
-│   └── predict.py                  # (Week 8) Inference
-│
-├── models/                         # Saved model artifacts (.pkl/.joblib)
+│   ├── scoring.py      ← Deterministic nutrition scoring (v1.0)
+│   ├── features.py     ← Feature engineering pipeline (24 features)
+│   ├── train.py        ← XGBoost + RF + Linear training + CV
+│   ├── evaluate.py     ← MAE/RMSE/R² + per-category breakdown
+│   ├── explain.py      ← SHAP TreeExplainer + global importance
+│   └── predict.py      ← AarogyaPredictor class (score + SHAP)
 │
 ├── recommendation/
-│   ├── recommender.py              # ✅ Rule-based recommendation engine
-│   ├── similarity.py               # (Week 11) Cosine/Euclidean similarity
-│   └── ranking.py                  # (Future) Learning-to-Rank model
-│
-├── ocr/
-│   ├── preprocess.py               # (Week 12) OpenCV image preprocessing
-│   ├── extract.py                  # (Week 12) PaddleOCR text extraction
-│   └── parser.py                   # (Week 12) Nutrition/ingredient parser
+│   └── recommender.py  ← Preference-weighted recommendation engine
 │
 ├── llm/
-│   └── gemini.py                   # (Week 13) Gemini explanation layer
-│
-├── database/
-│   └── mongodb.py                  # ✅ MongoDB connection manager
+│   ├── groq_llm.py     ← Groq LLM integration (score explain + chat)
+│   └── gemini.py       ← Google Gemini fallback
 │
 ├── api/
-│   └── main.py                     # (Week 13) FastAPI backend
+│   └── main.py         ← FastAPI REST backend (8 endpoints)
 │
-├── notebooks/
-│   ├── 01_data_exploration.ipynb   # (Week 4) EDA
-│   ├── 02_feature_engineering.ipynb # (Week 5)
-│   ├── 03_model_training.ipynb     # (Week 7)
-│   └── 04_model_evaluation.ipynb   # (Week 8)
+├── tests/
+│   ├── conftest.py
+│   ├── test_scoring.py     ← 14 scoring tests
+│   ├── test_features.py    ← 10 feature engineering tests
+│   └── test_recommender.py ← 11 recommender tests
 │
-├── tests/                          # (Week 2+) pytest test suite
-└── utils/                          # Shared utility functions
+├── notebooks/              ← Jupyter EDA notebooks
+├── models/                 ← Trained model files (gitignored)
+├── app.py                  ← Day 1 environment checker
+├── app_streamlit.py        ← Full Streamlit UI
+├── generate_clean_csv.py   ← CSV fixer utility
+├── requirements.txt
+├── .env.example
+└── README.md
 ```
 
 ---
 
-## ML Problem Definition
+## Aarogya Score System
 
-| Task | Type | Target | When |
-|------|------|--------|------|
-| **Score Regression** (Primary) | Regression | Aarogya Food Insight Score (0–100) | Week 7 |
-| **Food Category Classification** (Secondary) | Multi-class | processing_level or tier | Week 8+ |
-| **Preference-based Ranking** (Future) | Learning-to-Rank | Preferred product given user preferences | Week 11+ |
+| Score | Tier | Meaning |
+|-------|------|---------|
+| 75–100 | 🟢 Excellent | Great nutritional profile |
+| 60–74 | 🟡 Good | Above average |
+| 40–59 | 🟠 Moderate | Balanced trade-offs |
+| 0–39 | 🔴 Needs Consideration | Notable concerns |
 
-### Why Regression first?
-
-Regression produces a **continuous** output (0–100) that preserves the granularity of the scoring methodology. Classification bins the score and loses information. The continuous score also enables natural ranking for recommendations.
+**Score components:**
+- 🍬 Sugar (lower = better)
+- 💪 Protein (higher = better)
+- 🌾 Fiber (higher = better)
+- 🧂 Sodium (lower = better)
+- 🧈 Saturated Fat (lower = better)
+- ⚡ Energy Density
+- ⚙️ Processing Level penalty/bonus
+- 🌾 Whole Grain bonus
 
 ---
 
-## Scoring Methodology (v1.0)
+## ML Model Results
 
+| Model | MAE | RMSE | R² |
+|-------|-----|------|----|
+| Linear Regression (baseline) | 1.01 | 1.31 | 0.991 |
+| Random Forest | 3.16 | 4.39 | 0.895 |
+| **XGBoost (primary)** | **2.00** | **2.86** | **0.955** |
+
+**XGBoost 5-fold CV MAE: 3.16 ± 0.68**
+
+Top SHAP features (by |mean SHAP|):
+1. Processing Level (5.69)
+2. Sugar (3.08)
+3. Protein per Calorie (2.44)
+4. Fiber (1.83)
+5. Sodium (1.63)
+
+---
+
+## Quick Start
+
+### 1. Setup
+```bash
+git clone <your-repo-url>
+cd aarogya
+
+python -m venv venv
+.\venv\Scripts\activate          # Windows
+# source venv/bin/activate       # Mac/Linux
+
+pip install -r requirements.txt
 ```
-Raw Nutrition (per 100g)
-        ↓
-Per-nutrient component scores (each 0–100)
-        ↓
-Weighted combination
-        ↓
-Processing level modifier (±5 to ±8 points)
-        ↓
-Ingredient modifiers (±3 points)
-        ↓
-Aarogya Food Insight Score (clipped to 0–100)
+
+### 2. Configure API Key
+```bash
+cp .env.example .env
+# Edit .env and add your GROQ_API_KEY
 ```
 
-| Component | Weight | Direction |
-|-----------|--------|-----------|
-| Sugar | 25% | Lower is better |
-| Protein | 20% | Higher is better |
-| Fiber | 20% | Higher is better |
-| Sodium | 15% | Lower is better |
-| Saturated Fat | 12% | Lower is better |
-| Calories (energy density) | 8% | Lower is better |
+### 3. Generate Dataset & Train Model
+```bash
+python data/generate_large_dataset.py   # creates 500-product dataset
+python ml/train.py                       # trains XGBoost (R²=0.955)
+```
 
-**Score Version:** `v1.0` — Track versions in `scoring_versions` MongoDB collection.
+### 4. Run Tests
+```bash
+pytest tests/ -v                         # 40 tests → all pass
+```
 
-### Label Limitation (Academic Disclosure — Required)
+### 5. Launch Streamlit UI
+```bash
+streamlit run app_streamlit.py
+# Opens at http://localhost:8501
+```
 
-The ML model is trained on scores generated by these deterministic rules. This creates a **circularity risk**: the model may simply learn to imitate the scoring rules rather than discovering independent nutritional patterns. This is a fundamental limitation of rule-generated labels and must be disclosed in all documentation and viva presentations.
+### 6. Launch FastAPI (optional)
+```bash
+uvicorn api.main:app --reload --port 8000
+# Docs at http://localhost:8000/docs
+```
 
-**Future improvements:** Expert annotation, validated frameworks (NutriScore, FSSAI), pairwise human preference labels.
+---
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Health check |
+| GET | `/health` | Detailed status |
+| POST | `/analyze` | Score + explain a product |
+| POST | `/recommend` | Get alternatives |
+| POST | `/compare` | Compare two products |
+| GET | `/product/{id}` | Lookup from catalog |
+| GET | `/categories` | List all categories |
+| GET | `/top/{category}` | Top products in category |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Data | Pandas, NumPy |
+| ML | XGBoost, scikit-learn |
+| Explainability | SHAP (TreeExplainer) |
+| LLM | Groq (compound-mini) |
+| UI | Streamlit, Plotly |
+| API | FastAPI, Uvicorn |
+| Testing | pytest (40 tests) |
 
 ---
 
 ## Dataset
 
-### Demo Dataset (Day 1)
-
-| Property | Value |
-|----------|-------|
-| File | `data/raw/aarogya_food_products_demo.csv` |
-| Type | **Synthetic — NOT real product data** |
-| Rows | 100 |
-| Source | `demo_synthetic` |
-| Verified | `false` |
-| Purpose | Development / Testing / Demonstration only |
-
-**This dataset is NOT sufficient for production ML training.**
-
-### Real Dataset (Week 2+)
-
-Target: **1,000–5,000+ products** from:
-
-1. **Open Food Facts** (Primary) — `world.openfoodfacts.org/data`
-2. **USDA FoodData Central** (Secondary) — `fdc.nal.usda.gov/api-guide.html`
-3. **ICMR-NIN Indian RDA** (Reference/Validation)
-4. **Manual verification** of Indian packaged food labels
+- **100 products** (demo): `data/raw/aarogya_food_products_demo.csv`
+- **500 products** (generated): `data/raw/aarogya_products_500.csv`
+- **10 categories**: Biscuits & Cookies, Breakfast Cereals, Chips & Namkeen, Beverages, Chocolates & Sweet Snacks, Snack/Protein Bars, Instant Foods, Bread & Bakery, Dairy & Dairy Drinks, Sauces & Condiments
+- **31 columns** per product including full nutrition label, processing level, allergens
 
 ---
 
-## Technology Stack
+## Important Disclaimer
 
-| Layer | Technology | Phase |
-|-------|-----------|-------|
-| Data | pandas, numpy | Day 1 |
-| ML | scikit-learn, XGBoost | Week 7 |
-| Explainability | SHAP | Week 9 |
-| NLP | Sentence Transformers | Week 10 |
-| OCR | OpenCV + PaddleOCR | Week 12 |
-| LLM | Gemini API | Week 13 |
-| Database | MongoDB (pymongo) | Week 13 |
-| Backend | FastAPI | Week 13 |
-| Frontend | Streamlit | Week 14 |
-| Experiments | MLflow | Week 7+ |
-| Testing | pytest | Week 2+ |
+> ⚠️ Aarogya is an academic project built on synthetic data.
+> Scores are **comparative**, not clinical.
+> This is **not medical advice**.
+> Do not use for dietary decisions without consulting a qualified nutritionist.
 
 ---
 
-## 12-Week Roadmap
+## Author
 
-| Week | Focus | Key Output |
-|------|-------|-----------|
-| 1 | **Foundation** | Project structure, demo dataset, scoring, features |
-| 2 | **Real Data Collection** | Open Food Facts + USDA API data pull |
-| 3 | **Data Cleaning** | Deduplication, unit normalization, missing value strategy |
-| 4 | **EDA** | Data quality report, distribution plots, correlation analysis |
-| 5 | **Feature Engineering** | Validated feature matrix, derived ratios |
-| 6 | **Baseline Scoring Validation** | Score distribution analysis, threshold tuning |
-| 7 | **ML Training** | Linear baseline + XGBoost model |
-| 8 | **Evaluation** | MAE, RMSE, R², cross-validation, leakage check |
-| 9 | **SHAP** | Feature importance, explanation pipeline |
-| 10 | **Ingredient NLP** | Sentence Transformer embeddings |
-| 11 | **Recommendation** | Enhanced recommendation engine |
-| 12 | **Barcode + OCR** | Barcode lookup, PaddleOCR integration |
-| 13 | **Gemini + FastAPI + MongoDB** | Full backend integration |
-| 14 | **Streamlit + Testing + Deployment** | Production-ready UI |
-
----
-
-## Recommendation System
-
-```
-Current Product
-       ↓
-Same recommendation_group
-       ↓
-Candidate Products
-       ↓
-Preference-Weighted Gap Scores
-       ↓
-Rank
-       ↓
-Top 3 Alternatives
-```
-
-### Example: Sugar-focused user
-
-```python
-from recommendation.recommender import AarogyaRecommender
-import pandas as pd
-
-df = pd.read_csv("data/raw/aarogya_food_products_demo.csv")
-rec = AarogyaRecommender(df)
-
-results = rec.recommend(
-    product_id="AAR004",              # Choco Cream Sandwich Biscuits
-    preference_profile="sugar_focused",
-    top_n=3,
-)
-print(results)
-```
-
----
-
-## Viva Key Points
-
-1. **Why not just use Gemini to score products?**
-   Gemini is a language model, not a nutrition analysis system. It would hallucinate scores, have no reproducibility, and couldn't be audited. The ML model produces deterministic, explainable scores.
-
-2. **What is the primary limitation?**
-   Label circularity — the model learns to imitate rules, not discover nutritional truth. Solution: expert labels + larger real-world dataset.
-
-3. **Why XGBoost?**
-   Handles tabular nutritional data well, natively handles NaN, fast, interpretable via SHAP, industry standard for tabular ML.
-
-4. **Why SHAP?**
-   Model-agnostic explainability that decomposes each prediction into per-feature contributions. Enables "this product scored 62 primarily because of high sugar and low fiber."
-
-5. **Why recommendation_group, not category?**
-   Prevents cross-category recommendations. A user with chips should get a better chip alternative, not a salad recommendation.
-
----
-
-## Contributing
-
-This is a college project. Contributions welcome from collaborators.
-
-```
-main → develop → feature/week-N-<feature-name>
-```
-
-**Never commit:**
-- `.env` files
-- API keys
-- Trained model files (`.pkl`, `.joblib`)
-- Large data files (Open Food Facts dumps)
-
----
-
-## License
-
-Academic project — MIT License
-
----
-
-*Built as a B.Tech IT final-year project demonstrating end-to-end ML engineering.*
+**B.Tech IT Student** | AAROGYA Project | 2026

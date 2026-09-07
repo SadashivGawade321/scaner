@@ -73,6 +73,7 @@ Your role:
     def __init__(self):
         self._client = None
         self._model  = os.getenv("GROQ_MODEL", "groq/compound-mini")
+        self._vision_model = "meta-llama/llama-4-scout-17b-16e-instruct"
         self._ready  = False
 
         if not GROQ_AVAILABLE:
@@ -290,7 +291,7 @@ Return ONLY the JSON. No explanation."""
 
         try:
             response = self._client.chat.completions.create(
-                model=self._model,
+                model=self._vision_model,
                 messages=[{
                     "role": "user",
                     "content": [
@@ -348,7 +349,7 @@ Return ONLY the JSON. No extra text."""
 
         try:
             response = self._client.chat.completions.create(
-                model=self._model,
+                model=self._vision_model,
                 messages=[{
                     "role": "user",
                     "content": [

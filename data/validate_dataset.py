@@ -37,6 +37,10 @@ import sys
 import pandas as pd
 import numpy as np
 
+# Force UTF-8 output on Windows (fixes UnicodeEncodeError for ≤ ≥ → ─ etc.)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
@@ -276,7 +280,7 @@ def check_categories(df: pd.DataFrame, report: ValidationReport):
     dist = df["category"].value_counts()
     for cat, count in dist.items():
         expected = EXPECTED_CATEGORY_COUNTS.get(cat, "?")
-        flag = "" if count == expected else f" ← expected ~{expected}"
+        flag = "" if count == expected else f" (expected ~{expected})"
         report.info(f"  {cat:<35} {count:>3}{flag}")
 
 

@@ -326,49 +326,76 @@ def save_product_to_mongo(product):
 # SCAN & VISION PIPELINE
 # ══════════════════════════════════════════════════════════════════════════════
 def scan_barcode(img_bytes):
+    # Try zxing-cpp first (fast, pure barcode reader)
     try:
         import zxingcpp
         from PIL import Image
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
         results = zxingcpp.read_barcodes(img)
-        return results[0].text.strip() if results else None
+        if results:
+            return results[0].text.strip()
     except Exception:
-        return None
+        pass
+    # Fallback: use Gemini Vision to read barcode from image
+    try:
+        from llm.gemini import AarogyaExplainer
+        import json, re
+        gem = AarogyaExplainer()
+        if gem.is_ready and gem._model:
+            from PIL import Image
+            img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+            res = gem._model.generate_content([
+                "Look at this image. If there is a barcode or QR code visible, "
+                "return ONLY the barcode number as plain text (digits only, no spaces). "
+                "If no barcode is found, return exactly: NONE",
+                img
+            ])
+            if res and res.text:
+                txt = res.text.strip()
+                # Extract just digits
+                digits = re.sub(r'[^0-9]', '', txt)
+                if digits and len(digits) >= 8:
+                    return digits
+    except Exception:
+        pass
+    return None
 
 def groq_vision_scan(img_bytes, mode="product"):
     """
     AI Vision extraction pipeline.
-    Uses Groq (primary) with Gemini Vision fallback.
+    Uses Groq RapidOCR (primary) with Gemini multimodal Vision fallback.
+    If Groq OCR fails or returns error, automatically retries with Gemini Vision.
     """
+    result = None
+
+    # Step 1: Try primary explainer (Groq RapidOCR)
     exp = load_explainer()
-    if not exp.is_ready:
-        # Try Gemini directly as last resort
+    if exp.is_ready:
+        try:
+            if mode == "ingredients":
+                result = exp.analyze_ingredients(img_bytes)
+            else:
+                result = exp.analyze_product_image(img_bytes)
+        except Exception:
+            result = None
+
+    # Step 2: If primary failed or returned error, try Gemini Vision directly
+    if not result or result.get("error"):
         try:
             from llm.gemini import AarogyaExplainer
             gem = AarogyaExplainer()
             if gem.is_ready:
                 if mode == "ingredients":
-                    return gem.analyze_ingredients(img_bytes)
-                return gem.analyze_product_image(img_bytes)
+                    gem_result = gem.analyze_ingredients(img_bytes)
+                else:
+                    gem_result = gem.analyze_product_image(img_bytes)
+                if gem_result and not gem_result.get("error"):
+                    return gem_result
         except Exception:
             pass
-        return None
-    try:
-        if mode == "ingredients":
-            return exp.analyze_ingredients(img_bytes)
-        return exp.analyze_product_image(img_bytes)
-    except Exception as e:
-        # Fallback to Gemini Vision on Groq failure
-        try:
-            from llm.gemini import AarogyaExplainer
-            gem = AarogyaExplainer()
-            if gem.is_ready:
-                if mode == "ingredients":
-                    return gem.analyze_ingredients(img_bytes)
-                return gem.analyze_product_image(img_bytes)
-        except Exception:
-            pass
-        return {"error": str(e)}
+
+    # Return whatever we got (could be error dict or None)
+    return result
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS

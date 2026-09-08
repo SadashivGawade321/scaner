@@ -44,6 +44,6 @@ dnspython>=2.6.0
 
 # ── Image Scanning (Barcode + RapidOCR) ────────────────────────────────────────
 Pillow>=10.0.0
-zxing-cpp>=2.0.0
+# zxing-cpp>=2.0.0  # Optional: needs C++ compiler, Gemini Vision handles barcodes as fallback
 rapidocr-onnxruntime>=1.3.0
 

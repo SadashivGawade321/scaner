@@ -267,8 +267,29 @@ def load_recommender():
 
 @st.cache_resource
 def load_explainer():
-    from llm.groq_llm import AarogyaGroqExplainer
-    return AarogyaGroqExplainer()
+    # Try Groq first (primary), then fall back to Gemini
+    try:
+        from llm.groq_llm import AarogyaGroqExplainer
+        exp = AarogyaGroqExplainer()
+        if exp.is_ready:
+            return exp
+    except Exception:
+        pass
+    # Fallback: Gemini
+    try:
+        from llm.gemini import AarogyaExplainer
+        exp = AarogyaExplainer()
+        if exp.is_ready:
+            return exp
+    except Exception:
+        pass
+    # Return whatever we have (even if not ready, for fallback mode)
+    try:
+        from llm.groq_llm import AarogyaGroqExplainer
+        return AarogyaGroqExplainer()
+    except Exception:
+        from llm.gemini import AarogyaExplainer
+        return AarogyaExplainer()
 
 def save_scan(product, score, verdict):
     """Save scanned product to MongoDB Atlas scan_history."""
@@ -306,26 +327,47 @@ def save_product_to_mongo(product):
 # ══════════════════════════════════════════════════════════════════════════════
 def scan_barcode(img_bytes):
     try:
-        from pyzbar.pyzbar import decode
+        import zxingcpp
         from PIL import Image
-        decoded = decode(Image.open(io.BytesIO(img_bytes)).convert("RGB"))
-        return decoded[0].data.decode("utf-8").strip() if decoded else None
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        results = zxingcpp.read_barcodes(img)
+        return results[0].text.strip() if results else None
     except Exception:
         return None
 
 def groq_vision_scan(img_bytes, mode="product"):
     """
-    RapidOCR + Groq AI extraction pipeline.
-    Works with 100% reliability, no external vision model needed.
+    AI Vision extraction pipeline.
+    Uses Groq (primary) with Gemini Vision fallback.
     """
     exp = load_explainer()
     if not exp.is_ready:
+        # Try Gemini directly as last resort
+        try:
+            from llm.gemini import AarogyaExplainer
+            gem = AarogyaExplainer()
+            if gem.is_ready:
+                if mode == "ingredients":
+                    return gem.analyze_ingredients(img_bytes)
+                return gem.analyze_product_image(img_bytes)
+        except Exception:
+            pass
         return None
     try:
         if mode == "ingredients":
             return exp.analyze_ingredients(img_bytes)
         return exp.analyze_product_image(img_bytes)
     except Exception as e:
+        # Fallback to Gemini Vision on Groq failure
+        try:
+            from llm.gemini import AarogyaExplainer
+            gem = AarogyaExplainer()
+            if gem.is_ready:
+                if mode == "ingredients":
+                    return gem.analyze_ingredients(img_bytes)
+                return gem.analyze_product_image(img_bytes)
+        except Exception:
+            pass
         return {"error": str(e)}
 
 # ══════════════════════════════════════════════════════════════════════════════

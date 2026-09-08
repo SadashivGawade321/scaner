@@ -1,25 +1,19 @@
-"""
+﻿"""
 llm/gemini.py
 ─────────────────────────────────────────────────────────────────────────────
-AAROGYA — Gemini Explanation Layer (Week 13)
+AAROGYA — Gemini Explanation & Multimodal Vision Layer
 ─────────────────────────────────────────────────────────────────────────────
+Uses Google Gemini (Gemini 2.5 Flash / Gemini Flash Latest) for:
+  1. Score and recommendation natural-language explanations
+  2. Direct multimodal vision parsing of packaged food nutrition labels & ingredients
+  3. Interactive product AI chat
+  4. Real-time product nutrient estimation
 
-DESIGN PRINCIPLE — Gemini is a TRANSLATION LAYER only.
-It converts structured ML output (score + SHAP) into natural language.
-It does NOT: generate scores, look up nutrition data, or make medical claims.
-
-USAGE
-─────
-    from llm.gemini import AarogyaExplainer
-    exp = AarogyaExplainer()
-    text = exp.explain_score(explanation_context)
-    text = exp.explain_recommendation(current_ctx, recommendations)
-
-    # Without API key: uses rule-based fallback automatically
+Falls back gracefully to rule-based logic if GEMINI_API_KEY is not configured.
 """
 
-import os, sys, logging
-import json
+import os, sys, logging, json, re, io
+from typing import Optional
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -34,6 +28,7 @@ except ImportError:
 
 try:
     import google.generativeai as genai
+    from PIL import Image
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
@@ -41,8 +36,8 @@ except ImportError:
 
 class AarogyaExplainer:
     """
-    Translates structured ML analysis into natural language via Gemini.
-    Falls back to rule-based explanation if Gemini is unavailable.
+    Translates structured ML analysis into natural language via Gemini,
+    and performs multimodal vision analysis on product photos.
     """
 
     SCORE_TO_TIER = {
@@ -53,41 +48,188 @@ class AarogyaExplainer:
     }
 
     def __init__(self):
-        self._client = None
-        self._model  = None
-        self._ready  = False
+        self._model = None
+        self._ready = False
+        self._model_name = "gemini-2.5-flash"
 
         if not GEMINI_AVAILABLE:
-            logger.info("google-generativeai not installed — using rule-based fallback.")
+            logger.info("google-generativeai not installed — using fallback.")
             return
 
         api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key:
+        if not api_key or api_key == "your_gemini_api_key_here":
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                    api_key = st.secrets["GEMINI_API_KEY"]
+            except Exception:
+                pass
+
+        if not api_key or api_key == "your_gemini_api_key_here":
             logger.info("GEMINI_API_KEY not set — using rule-based fallback.")
             return
 
         try:
             genai.configure(api_key=api_key)
-            self._model = genai.GenerativeModel("gemini-1.5-flash")
-            self._ready = True
-            logger.info("Gemini connected.")
+            candidate_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-2.5-flash-lite"]
+            for m in candidate_models:
+                try:
+                    self._model = genai.GenerativeModel(m)
+                    self._model_name = m
+                    self._ready = True
+                    logger.info(f"Gemini connected using {m}.")
+                    break
+                except Exception:
+                    continue
         except Exception as e:
             logger.warning(f"Gemini init failed: {e}")
 
-    # ─── Public API ────────────────────────────────────────────────────────
+    @property
+    def is_ready(self) -> bool:
+        return self._ready
 
-    def explain_score(self, ctx: dict) -> str:
-        """
-        Generate a natural language explanation of the Aarogya score.
+    def model_name(self) -> str:
+        return self._model_name if self._ready else "Rule-based Fallback"
 
-        Parameters
-        ----------
-        ctx : dict — from ml/explain.py build_explanation_context()
+    # ── Vision Analysis ────────────────────────────────────────────────────────
+    def analyze_product_image(self, image_bytes: bytes) -> dict:
+        """Analyze packaged food label using Gemini Vision."""
+        if not self._ready or not self._model:
+            return {"error": "Gemini not configured", "confidence": "low"}
+        try:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            prompt = """You are an expert AI food label analyzer for Aarogya.
+Analyze this food product image or nutrition facts label.
+Extract nutrients per 100g. Return ONLY a single valid JSON object without markdown formatting:
+{
+  "product_name": "Product Name",
+  "brand": "Brand Name",
+  "category": "Biscuits & Cookies|Breakfast Cereals|Chips & Namkeen|Dairy|Beverages|Other",
+  "processing_level": "minimally_processed|processed|ultra_processed",
+  "energy_kcal_100g": 0.0,
+  "protein_g_100g": 0.0,
+  "carbs_g_100g": 0.0,
+  "sugar_g_100g": 0.0,
+  "total_fat_g_100g": 0.0,
+  "saturated_fat_g_100g": 0.0,
+  "fiber_g_100g": 0.0,
+  "sodium_mg_100g": 0.0,
+  "confidence": "high",
+  "harmful_additives": [],
+  "allergens_found": [],
+  "health_claims": [],
+  "contains_whole_grain": false,
+  "contains_added_sugar": false,
+  "ingredients_list": []
+}"""
+            res = self._model.generate_content([prompt, img])
+            if res and res.text:
+                txt = res.text.strip()
+                txt = re.sub(r"^```(?:json)?\s*", "", txt)
+                txt = re.sub(r"\s*```$", "", txt)
+                parsed = json.loads(txt)
+                parsed["_source"] = f"Gemini Vision ({self._model_name})"
+                return parsed
+        except Exception as e:
+            logger.warning(f"Gemini image analysis error: {e}")
+            return {"error": str(e), "confidence": "low"}
+        return {"error": "No response from Gemini", "confidence": "low"}
 
-        Returns
-        -------
-        str — 2-3 sentence user-friendly explanation
-        """
+    def analyze_ingredients(self, image_bytes: bytes) -> dict:
+        """Analyze ingredients list photo using Gemini Vision."""
+        if not self._ready or not self._model:
+            return {"error": "Gemini not configured"}
+        try:
+            img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            prompt = """You are an expert food safety auditor.
+Analyze this photo of an ingredients list on packaged food.
+Return ONLY a single valid JSON object without markdown formatting:
+{
+  "ingredients_raw": "full raw text",
+  "ingredients_list": ["ingredient 1", "ingredient 2"],
+  "total_ingredients_count": 0,
+  "ingredient_quality_score": 7,
+  "summary": "1-2 sentence overview of ingredient quality",
+  "red_flag_ingredients": [{"name": "name", "severity": "high|medium|low", "reason": "why harmful"}]
+}"""
+            res = self._model.generate_content([prompt, img])
+            if res and res.text:
+                txt = res.text.strip()
+                txt = re.sub(r"^```(?:json)?\s*", "", txt)
+                txt = re.sub(r"\s*```$", "", txt)
+                parsed = json.loads(txt)
+                parsed["_source"] = f"Gemini Vision ({self._model_name})"
+                return parsed
+        except Exception as e:
+            logger.warning(f"Gemini ingredients analysis error: {e}")
+            return {"error": str(e)}
+        return {"error": "No response"}
+
+    def analyze_product_by_name(self, product_name: str, language: str = "en") -> dict:
+        """Estimate nutritional facts and safety score for any product by name."""
+        if not self._ready or not self._model:
+            return {
+                "product_name": product_name,
+                "category": "Other",
+                "energy_kcal_100g": 300,
+                "protein_g_100g": 5,
+                "carbs_g_100g": 50,
+                "sugar_g_100g": 15,
+                "total_fat_g_100g": 10,
+                "saturated_fat_g_100g": 3,
+                "fiber_g_100g": 2,
+                "sodium_mg_100g": 300,
+                "processing_level": "processed",
+                "ingredients_list": [],
+                "harmful_additives": [],
+                "healthier_alternatives": [],
+            }
+        try:
+            prompt = f"""Estimate standard nutritional values per 100g for this packaged food item: '{product_name}'.
+Return ONLY a single valid JSON object (no markdown):
+{{
+  "product_name": "{product_name}",
+  "brand": "Popular Brand",
+  "category": "Biscuits & Cookies|Breakfast Cereals|Chips & Namkeen|Dairy|Beverages|Other",
+  "processing_level": "minimally_processed|processed|ultra_processed",
+  "energy_kcal_100g": 350.0,
+  "protein_g_100g": 5.0,
+  "carbs_g_100g": 60.0,
+  "sugar_g_100g": 20.0,
+  "total_fat_g_100g": 12.0,
+  "saturated_fat_g_100g": 5.0,
+  "fiber_g_100g": 2.5,
+  "sodium_mg_100g": 300.0,
+  "ingredients_list": ["ingredient 1", "ingredient 2"],
+  "harmful_additives": [],
+  "healthier_alternatives": ["healthier option 1", "healthier option 2"]
+}}"""
+            res = self._model.generate_content(prompt)
+            if res and res.text:
+                txt = res.text.strip()
+                txt = re.sub(r"^```(?:json)?\s*", "", txt)
+                txt = re.sub(r"\s*```$", "", txt)
+                return json.loads(txt)
+        except Exception as e:
+            logger.warning(f"Product analysis by name error: {e}")
+        return {"product_name": product_name, "category": "Other"}
+
+    def chat(self, user_question: str, product_ctx: Optional[dict] = None) -> str:
+        """Answer user questions with Gemini."""
+        if not self._ready or not self._model:
+            return "AI chat is currently in fallback mode. Connect your Gemini API key to enable interactive chat."
+        try:
+            prompt = f"You are Aarogya, a helpful food safety assistant.\n"
+            if product_ctx:
+                prompt += f"Product Context:\nName: {product_ctx.get('product_name')}\nScore: {product_ctx.get('predicted_score')}/100\nCategory: {product_ctx.get('category')}\n"
+            prompt += f"User Question: {user_question}\nAnswer clearly in 2-3 sentences."
+            res = self._model.generate_content(prompt)
+            return res.text.strip()
+        except Exception as e:
+            return f"Chat error: {e}"
+
+    # ── Explanation Methods ───────────────────────────────────────────────────
+    def explain_score(self, ctx: dict, language: str = "en") -> str:
         if self._ready:
             try:
                 return self._gemini_explain_score(ctx)
@@ -96,18 +238,6 @@ class AarogyaExplainer:
         return self._fallback_explain_score(ctx)
 
     def explain_recommendation(self, current: dict, recs: list) -> str:
-        """
-        Generate a recommendation explanation narrative.
-
-        Parameters
-        ----------
-        current : dict — explanation context for current product
-        recs    : list of recommendation dicts from recommender
-
-        Returns
-        -------
-        str — recommendation explanation
-        """
         if self._ready:
             try:
                 return self._gemini_explain_recs(current, recs)
@@ -115,130 +245,56 @@ class AarogyaExplainer:
                 logger.warning(f"Gemini call failed: {e}. Using fallback.")
         return self._fallback_explain_recs(current, recs)
 
-    # ─── Gemini calls ──────────────────────────────────────────────────────
-
     def _gemini_explain_score(self, ctx: dict) -> str:
-        prompt = self._build_score_prompt(ctx)
-        response = self._model.generate_content(prompt)
-        return response.text.strip()
+        tier, _ = self._get_tier(ctx.get("predicted_score", 50))
+        prompt = f"""You are AAROGYA, a packaged food intelligence assistant.
+Product: {ctx.get('product_name','Unknown')}
+Category: {ctx.get('category','')}
+Processing: {ctx.get('processing_level','')}
+Aarogya Score: {ctx.get('predicted_score', 50)}/100 ({tier})
+Key factors:
+- Positive: {', '.join(ctx.get('strengths', [])) if ctx.get('strengths') else 'None'}
+- Concerns: {', '.join(ctx.get('concerns', [])) if ctx.get('concerns') else 'None'}
+
+Instructions:
+- Write exactly 2-3 concise sentences explaining this food score.
+- Do NOT make medical claims or diagnoses.
+- Be objective and friendly."""
+        res = self._model.generate_content(prompt)
+        return res.text.strip()
 
     def _gemini_explain_recs(self, current: dict, recs: list) -> str:
-        prompt = self._build_rec_prompt(current, recs)
-        response = self._model.generate_content(prompt)
-        return response.text.strip()
-
-    # ─── Prompt builders ───────────────────────────────────────────────────
-
-    def _build_score_prompt(self, ctx: dict) -> str:
-        tier, _ = self._get_tier(ctx["predicted_score"])
-        return f"""You are AAROGYA, a packaged food information assistant.
-
-Product: {ctx['product_name']}
-Category: {ctx['category']}
-Processing: {ctx['processing_level']}
-Aarogya Score: {ctx['predicted_score']}/100 ({tier})
-
-This score was generated by a machine learning model trained on nutritional data.
-Key factors driving this score (SHAP analysis):
-- Positive factors: {', '.join(ctx['strengths']) if ctx['strengths'] else 'None significant'}
-- Negative factors: {', '.join(ctx['concerns']) if ctx['concerns'] else 'None significant'}
-
-Instructions:
-- Write exactly 2-3 sentences explaining this product's nutritional profile.
-- Use the phrase "for your selected preferences" instead of "healthy" or "unhealthy".
-- Do NOT make medical claims or diagnoses.
-- Only use facts from the data above. Do NOT invent any numbers.
-- Be conversational and helpful."""
-
-    def _build_rec_prompt(self, current: dict, recs: list) -> str:
-        rec_lines = []
-        for i, r in enumerate(recs[:3], 1):
-            rec_lines.append(
-                f"  {i}. {r.get('product_name','?')} "
-                f"(Score: {r.get('food_score', r.get('computed_score','?'))})"
-            )
-        return f"""You are AAROGYA, a packaged food information assistant.
-
-Current Product: {current['product_name']} (Score: {current['predicted_score']}/100)
-Recommended alternatives (same category):
+        rec_lines = [f"{i}. {r.get('product_name','?')} (Score: {r.get('food_score', r.get('computed_score','?'))})" for i, r in enumerate(recs[:3], 1)]
+        prompt = f"""You are AAROGYA, a packaged food assistant.
+Current Product: {current.get('product_name','Unknown')} (Score: {current.get('predicted_score','?')}/100)
+Recommended alternatives:
 {chr(10).join(rec_lines)}
 
-Instructions:
-- Write 2 sentences explaining why these alternatives may be better for the user's preferences.
-- Do NOT make medical claims.
-- Use "for your selected preferences" instead of "healthier".
-- Do not invent information."""
-
-    # ─── Rule-based fallbacks ──────────────────────────────────────────────
+Write 2 concise sentences explaining why these alternatives offer better nutritional balance."""
+        res = self._model.generate_content(prompt)
+        return res.text.strip()
 
     def _fallback_explain_score(self, ctx: dict) -> str:
-        score = ctx["predicted_score"]
+        score = ctx.get("predicted_score", 50)
         tier, _ = self._get_tier(score)
-        name = ctx["product_name"]
-
+        name = ctx.get("product_name", "This product")
         parts = [f"{name} has an Aarogya score of {score}/100, rated as {tier}."]
-
-        if ctx["strengths"]:
-            s = ", ".join(ctx["strengths"][:2])
-            parts.append(
-                f"For your selected preferences, it performs well on {s}."
-            )
-        if ctx["concerns"]:
-            c = ", ".join(ctx["concerns"][:2])
-            parts.append(
-                f"You may want to consider that it has relatively high {c}."
-            )
-        if not ctx["strengths"] and not ctx["concerns"]:
-            parts.append("This product has a balanced nutritional profile for its category.")
-
+        if ctx.get("strengths"):
+            parts.append(f"It performs well on {', '.join(ctx['strengths'][:2])}.")
+        if ctx.get("concerns"):
+            parts.append(f"Keep in mind it has higher {', '.join(ctx['concerns'][:2])}.")
         return " ".join(parts)
 
     def _fallback_explain_recs(self, current: dict, recs: list) -> str:
         if not recs:
             return "No alternative products found in the same category."
         top = recs[0]
-        name = top.get("product_name", "the recommended product")
+        name = top.get("product_name", "the recommended alternative")
         score = top.get("food_score", top.get("computed_score", "?"))
-        current_name = current.get("product_name", "this product")
-        return (
-            f"Based on your selected preferences, {name} (Score: {score}) "
-            f"may be a better fit compared to {current_name}. "
-            f"It offers improvements in the nutritional areas you care about most."
-        )
+        return f"Based on nutritional values, {name} (Score: {score}) offers a healthier profile compared to {current.get('product_name', 'this product')}."
 
     def _get_tier(self, score: float):
         for (lo, hi), (tier, color) in self.SCORE_TO_TIER.items():
             if lo <= score <= hi:
                 return tier, color
         return "Unknown", "grey"
-
-
-# ─── Quick test ────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    print("=" * 60)
-    print("AAROGYA — Gemini Explainer Test")
-    print("=" * 60)
-
-    exp = AarogyaExplainer()
-    ctx = {
-        "product_name":    "Choco Cream Sandwich Biscuits",
-        "category":        "Biscuits & Cookies",
-        "processing_level":"ultra_processed",
-        "predicted_score": 31.0,
-        "base_value":      55.0,
-        "score_version":   "v1.0",
-        "strengths":       [],
-        "concerns":        ["sugar", "saturated fat", "energy density"],
-        "shap_top_features": {"sugar": -9.5, "saturated fat": -4.2, "fiber": -2.1},
-    }
-    explanation = exp.explain_score(ctx)
-    print(f"\nExplanation:\n  {explanation}")
-
-    recs = [
-        {"product_name": "High Fiber Bran Biscuits", "food_score": 74},
-        {"product_name": "Oatmeal Cookies",           "food_score": 68},
-    ]
-    rec_text = exp.explain_recommendation(ctx, recs)
-    print(f"\nRecommendation:\n  {rec_text}")
-
-    print("\n[GEMINI EXPLAINER OK]")

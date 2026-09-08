@@ -95,7 +95,6 @@ body,.stApp{background:#0d1117 !important}
 # GLOBAL CSS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
 html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#0d1117;color:#e6edf3}

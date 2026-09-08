@@ -468,6 +468,11 @@ def blank_product(name="Scanned Product", cat="Biscuits & Cookies"):
 # RESULT PAGE
 # ══════════════════════════════════════════════════════════════════════════════
 def show_result(product, source=""):
+    # Back button at top
+    if st.button("⬅️ Back to Scanner", key="back_top", use_container_width=False):
+        del st.session_state["result"]
+        st.rerun()
+
     score, breakdown = get_score(product)
     verdict, color, icon, css = get_verdict(score, lang)
     name  = product.get("product_name","Unknown")

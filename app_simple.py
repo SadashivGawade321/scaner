@@ -95,6 +95,7 @@ body,.stApp{background:#0d1117 !important}
 # GLOBAL CSS
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
 html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#0d1117;color:#e6edf3}
@@ -140,6 +141,127 @@ html,body,[class*="css"]{font-family:'Inter',sans-serif;background:#0d1117;color
 @keyframes glow-green{from{box-shadow:0 0 20px #3fb95022}to{box-shadow:0 0 50px #3fb95055}}
 @keyframes glow-red{from{box-shadow:0 0 20px #f8514922}to{box-shadow:0 0 50px #f8514955}}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+
+/* ── Responsive Design ──────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .scan-title { font-size: 1.8rem !important; }
+  .scan-sub { font-size: 0.82rem !important; }
+
+  .verdict-safe, .verdict-moderate, .verdict-harmful {
+    padding: 1.2rem !important;
+    border-radius: 14px !important;
+  }
+  .verdict-safe div, .verdict-moderate div, .verdict-harmful div {
+    font-size: 2.5rem !important;
+  }
+
+  .rec-card { padding: .6rem .8rem !important; }
+  .nutrient-row { font-size: .8rem !important; padding: .3rem 0 !important; }
+  .history-card { flex-direction: column !important; gap: .4rem !important; padding: .6rem !important; }
+
+  /* Streamlit overrides for mobile */
+  .stTabs [data-baseweb="tab-list"] {
+    flex-wrap: wrap !important;
+    gap: 2px !important;
+    padding: 3px !important;
+  }
+  .stTabs [data-baseweb="tab"] {
+    font-size: .75rem !important;
+    padding: .35rem .5rem !important;
+    min-height: unset !important;
+  }
+
+  /* Columns stack on mobile */
+  [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+    gap: 0.3rem !important;
+  }
+
+  /* File uploader */
+  [data-testid="stFileUploader"] {
+    padding: 0.5rem !important;
+  }
+
+  /* Buttons */
+  .stButton > button {
+    font-size: 0.85rem !important;
+    padding: 0.5rem 0.8rem !important;
+  }
+
+  /* Images */
+  [data-testid="stImage"] {
+    max-width: 100% !important;
+  }
+  [data-testid="stImage"] img {
+    border-radius: 10px !important;
+  }
+
+  /* Expanders */
+  [data-testid="stExpander"] {
+    font-size: 0.85rem !important;
+  }
+
+  /* Radio buttons horizontal */
+  .stRadio > div {
+    flex-wrap: wrap !important;
+    gap: 0.3rem !important;
+  }
+  .stRadio label {
+    font-size: 0.82rem !important;
+  }
+
+  /* Selectbox */
+  .stSelectbox {
+    font-size: 0.85rem !important;
+  }
+
+  /* Main container padding */
+  .main .block-container {
+    padding: 1rem 0.8rem !important;
+    max-width: 100% !important;
+  }
+
+  /* Camera input */
+  [data-testid="stCameraInput"] video,
+  [data-testid="stCameraInput"] img {
+    border-radius: 10px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .scan-title { font-size: 1.5rem !important; }
+  .scan-sub { font-size: 0.75rem !important; margin-bottom: 0.6rem !important; }
+
+  .verdict-safe, .verdict-moderate, .verdict-harmful {
+    padding: 0.8rem !important;
+    border-radius: 10px !important;
+  }
+
+  .stTabs [data-baseweb="tab"] {
+    font-size: .68rem !important;
+    padding: .25rem .4rem !important;
+  }
+
+  .main .block-container {
+    padding: 0.5rem 0.5rem !important;
+  }
+
+  .disclaimer { font-size: .65rem !important; }
+}
+
+/* ── Touch-friendly enhancements ──────────────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  .stButton > button {
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+  .rec-card {
+    padding: 1rem 1.2rem !important;
+  }
+  .stTabs [data-baseweb="tab"] {
+    min-height: 40px !important;
+  }
+}
 </style>
 """, unsafe_allow_html=True)
 
